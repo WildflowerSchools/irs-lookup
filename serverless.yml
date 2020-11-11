@@ -1,0 +1,141 @@
+service: irs-lookup
+app: irs-lookup-app
+org: wildflowerschools
+
+provider:
+  name: aws
+  runtime: python3.8
+  apiGateway:
+    shouldStartNameWithService: true
+  region: us-east-1
+  stage: ${opt:stage, 'dev'}
+  environment:
+    TABLE_990S: ${self:service}-990s-${self:provider.stage}
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - lambda:InvokeFunction
+      Resource:
+        - arn:aws:lambda:${opt:region, self:provider.region}:*:function:refresh_990s_bkgd
+    - Effect: "Allow"
+      Action:
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+        - dynamodb:BatchWriteItem
+        - dynamodb:BatchGetItem
+      Resource:
+        - arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.TABLE_990S}
+        - arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.TABLE_990S}/index/*
+
+package:
+  exclude:
+    - .idea/**
+    - .serverless-cache/**
+    - .serverless-offline/**
+    - .dynamodb/**
+    - node_modules/**
+    - venv/**
+    - dist/**
+    - build/**
+    - '**/*.egg-info*'
+    - output/**
+    - poppler-layer/**
+
+functions:
+  http_fetch_990:
+    handler: handler.fetch_990
+    timeout: 30
+    layers:
+      - ${cf:poppler-layer-dev.PopplerLayerExport}
+    events:
+      - http:
+          method: get
+          path: /990/{ein}
+          cors: true
+          request:
+            parameters:
+              paths:
+                ein: true
+  cron_refresh_990s:
+    handler: handler.refresh_990s_bkgd
+    timeout: 900
+    events:
+      - schedule:
+          rate: rate(7 days)
+
+resources:
+  Resources:
+    990sTable:
+      Type: AWS::DynamoDB::Table
+      DeletionPolicy: Retain # Keeps around the DynamoDB resource when we redeploy/destroy
+      Properties:
+        TableName: ${self:provider.environment.TABLE_990S}
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: N
+          - AttributeName: ein
+            AttributeType: N
+          - AttributeName: year
+            AttributeType: N
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: "ein-index"
+            KeySchema:
+              - AttributeName: ein
+                KeyType: HASH
+            Projection:
+              ProjectionType: "ALL"
+            ProvisionedThroughput:
+              ReadCapacityUnits: 5
+              WriteCapacityUnits: 5
+          - IndexName: "year-index"
+            KeySchema:
+              - AttributeName: year
+                KeyType: HASH
+            Projection:
+              ProjectionType: "ALL"
+            ProvisionedThroughput:
+              ReadCapacityUnits: 5
+              WriteCapacityUnits: 5
+        ProvisionedThroughput:
+          ReadCapacityUnits: 5
+          WriteCapacityUnits: 5
+
+custom:
+  pythonRequirements:
+    dockerizePip: true
+    zip: true
+    slim: true
+    strip: false
+    slimPatterns:
+      - '**/*.egg-info*'
+    useStaticCache: true
+    useDownloadCache: true
+    cacheLocation: './.serverless-cache'
+    staticCacheMaxVersions: 3
+    noDeploy:
+      - boto3
+      - click
+      - click-log
+      - python-dateutil
+      - setuptools
+      - six
+  serverless-offline:
+    useDocker: true
+  dynamodb:
+    stages:
+      - ${self:provider.stage}
+    start:
+      migrate: true
+
+plugins:
+  - serverless-python-requirements
+  - serverless-dotenv-plugin
+  - serverless-dynamodb-local
+  - serverless-offline

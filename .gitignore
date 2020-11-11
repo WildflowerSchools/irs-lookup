@@ -1,0 +1,39 @@
+.idea
+
+# Distribution / packaging
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+node_modules/
+__pycache__/
+
+# Serverless directories
+.serverless
+.serverless-cache
+.serverless-offline
+.dynamodb
+.requirements.zip
+
+# Project files
+ein.txt
+.python-version
+
+*.csv
+*.json
+*.ppm
+
+# Requirements some from setup.py
+requirements.txt

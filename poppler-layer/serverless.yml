@@ -1,0 +1,13 @@
+service: poppler-layer
+provider:
+  name: aws
+layers:
+  poppler:
+    path: layer
+resources:
+  Outputs:
+    PopplerLayerExport:
+      Value:
+        Ref: PopplerLambdaLayer
+      Export:
+        Name: PopplerLambdaLayer
