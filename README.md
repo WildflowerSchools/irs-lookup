@@ -32,12 +32,15 @@ To refresh a single year use:
 
     npm install
     sls dynamodb install
-    AWS_PROFILE=default SLS_DEBUG=* PYTHONPATH=./.serverless/requirements sls offline start
-
+    pip freeze
+    
+    echo "PYTHONPATH=./$(realpath --relative-to=. ./.serverless/requirements)" >> .env
+    AWS_PROFILE=default SLS_DEBUG=* sls offline start
+     
 #### Fetch for EIN
 `aws lambda invoke /dev/null \
    --cli-binary-format raw-in-base64-out \
-   --payload '{"pathParameters": {"ein":"471417900"}}' \
+   --payload '{"pathParameters": {"ein":"471417900"}, "queryStringParameters": {"source": "irs"}}' \
    --endpoint-url http://localhost:3002 \
    --function-name irs-lookup-dev-http_fetch_990`
    

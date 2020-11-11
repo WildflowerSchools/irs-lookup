@@ -35,7 +35,7 @@ package:
   exclude:
     - .idea/**
     - .serverless-cache/**
-    - .serverless-offline/**
+    #- .serverless-offline/**
     - .dynamodb/**
     - node_modules/**
     - venv/**
@@ -113,6 +113,7 @@ custom:
     zip: true
     slim: true
     strip: false
+    #layer: true
     slimPatterns:
       - '**/*.egg-info*'
     useStaticCache: true
@@ -138,4 +139,5 @@ plugins:
   - serverless-python-requirements
   - serverless-dotenv-plugin
   - serverless-dynamodb-local
+  #- serverless-offline-python
   - serverless-offline

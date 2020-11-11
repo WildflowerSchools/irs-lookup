@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 
 import irs_lookup.io as _io
-import irs_lookup.lookup as _lookup
+import irs_lookup.lookup_irs as _lookup
 from .log import logger
 
 

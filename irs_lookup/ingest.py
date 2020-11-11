@@ -54,6 +54,7 @@ def refresh_990s(year=None):
 
         returns_df.id = returns_df.id.astype(int)
         returns_df.ein = returns_df.ein.astype(int)
+        returns_df.tax_period = returns_df.tax_period.astype(str)
 
         if len(ein_filter) > 0:
             returns_df = returns_df[returns_df['ein'].isin(ein_filter)]

@@ -209,22 +209,24 @@ def lookup_990s_by_ein(ein):
                     filing_date_beginning_match = re.search(
                         filing_date_beginning_regex, text_990)
                     if filing_date_beginning_match is not None:
-                        r_filing_date_start = "{} {} {}".format(
-                            filing_date_beginning_match.group(1).strip(),
-                            filing_date_beginning_match.group(2).strip(),
-                            filing_date_beginning_match.group(3).strip())
+                        r_filing_date_start = "{}-{}-{}".format(
+                            filing_date_beginning_match.group(1).replace(' ', '').strip(),
+                            filing_date_beginning_match.group(2).replace(' ', '').strip(),
+                            filing_date_beginning_match.group(3).replace(' ', '').strip())
+                        r_filing_date_start = re.sub(
+                            r"\s", "", r_filing_date_start)
                         r_filing_date_start = dateparser.parse(
                             r_filing_date_start).strftime('%m-%d-%Y')
 
                     filing_date_ending_match = re.search(
                         filing_date_ending_regex, text_990)
                     if filing_date_ending_match is not None:
-                        r_filing_date_end = "{} {} {}".format(
-                            filing_date_ending_match.group(1).strip(),
-                            filing_date_ending_match.group(2).strip(),
-                            filing_date_ending_match.group(3).strip())
+                        r_filing_date_end = "{}-{}-{}".format(
+                            filing_date_ending_match.group(1).replace(' ', '').strip(),
+                            filing_date_ending_match.group(2).replace(' ', '').strip(),
+                            filing_date_ending_match.group(3).replace(' ', '').strip())
                         r_filing_date_end = re.sub(
-                            r"\s+", " ", r_filing_date_end)
+                            r"\s", "", r_filing_date_end)
                         r_filing_date_end = dateparser.parse(
                             r_filing_date_end).strftime('%m-%d-%Y')
 
@@ -255,10 +257,10 @@ def lookup_990s_by_ein(ein):
         except Exception as err:
             print(ein, 'error')
             traceback.print_exc()
-
             print(err)
 
-            return irs_returns
+        irs_returns.ein = irs_returns.ein.astype(int)
+        irs_returns.return_id = irs_returns.return_id.astype(int)
 
         return irs_returns
 
