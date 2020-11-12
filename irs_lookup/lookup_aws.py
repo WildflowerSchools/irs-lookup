@@ -1,3 +1,4 @@
+import dateparser
 import pandas as pd
 import requests
 import traceback
@@ -46,15 +47,16 @@ def lookup_990s_by_ein(ein):
             'return_type',
             'tax_period',
             'object_id',
-            'taxpayer_name'])
+            'taxpayer_name',
+            'sub_date'])
 
     xml_ns = {'': 'http://www.irs.gov/efile'}
 
     try:
         for item in items:
-            url = "https://s3.amazonaws.com/irs-form-990/{}_public.xml".format(
+            xml_url = "https://s3.amazonaws.com/irs-form-990/{}_public.xml".format(
                 item['object_id'])
-            form_990 = load_990(url)
+            form_990 = load_990(xml_url)
 
             r_name, r_tax_period, r_return_id, r_return_type, r_filing_name, r_filing_url, r_filing_date_start, r_filing_date_end = None, None, None, None, None, None, None, None
 
@@ -69,7 +71,12 @@ def lookup_990s_by_ein(ein):
             r_return_type = item['return_type']
             r_tax_period = item['tax_period']
             r_filing_name = item['tax_period']
-            r_filing_url = url
+            r_filing_url = "https://apps.irs.gov/pub/epostcard/cor/{}_{}_{}_{}{}.pdf".format(
+                ein,
+                item['tax_period'],
+                item['return_type'],
+                dateparser.parse(item['sub_date']).strftime('%Y%m%d'),
+                item['id'])
             r_filing_date_start = return_header.find(
                 'TaxPeriodBeginDt', xml_ns).text
             r_filing_date_end = return_header.find(
