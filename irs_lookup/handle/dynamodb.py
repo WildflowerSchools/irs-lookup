@@ -1,7 +1,9 @@
 import boto3
 import botocore
-from boto3.dynamodb.conditions import Key, Attr
+from boto3.dynamodb.conditions import Key
 import os
+
+from irs_lookup.log import logger
 
 TABLE_990S = os.environ.get('TABLE_990S')
 IS_LOCAL = os.environ.get('IS_LOCAL')
@@ -48,8 +50,8 @@ def delete_990s_by_year(year, dynamodb=None):
                     writer.delete_item(Item=item)
 
     except botocore.exceptions.ClientError as e:
-        print(e.response['Error']['Message'])
-        print("Failed deleting records for year: {}".format(year))
+        logger.error(e.response['Error']['Message'])
+        logger.error("Failed deleting records for year: {}".format(year))
         raise
 
 
@@ -62,15 +64,12 @@ def add_990s(records=[], dynamodb=None):
         with table.batch_writer() as writer:
             for item in records:
                 writer.put_item(Item=item)
-        # response = table.put_item(
-        #     Item=record,
-        #     ConditionExpression='attribute_not_exists(id)')
     except botocore.exceptions.ClientError as e:
         # Ignore the ConditionalCheckFailedException, bubble up
         # other exceptions.
         if e.response['Error']['Code'] != 'ConditionalCheckFailedException':
-            print(e.response['Error']['Message'])
-            print("Failed inserting: {}".format(records))
+            logger.error(e.response['Error']['Message'])
+            logger.error("Failed inserting: {}".format(records))
             raise
     else:
         return True
@@ -104,7 +103,7 @@ def get_990s(key, value, index=None, projected_attrs=None, dynamodb=None):
 
         response = table.query(**query_attrs)
     except botocore.exceptions.ClientError as e:
-        print(e.response['Error']['Message'])
+        logger.error(e.response['Error']['Message'])
     else:
         if 'Item' in response:
             return [response['Item']]

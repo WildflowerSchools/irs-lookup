@@ -1,5 +1,7 @@
+import cachetools
+from cachetools.keys import hashkey
+from functools import partial
 import traceback
-import sys
 import requests
 import re
 from pdf2image import convert_from_bytes
@@ -9,13 +11,13 @@ import itertools
 import io
 from google.cloud import vision
 import dateparser
-import csv
 import bs4
 from PIL import Image
 Image.MAX_IMAGE_PIXELS = 1000000000
 
-#import pytesseract
-
+from irs_lookup.cache import cache
+from irs_lookup.log import logger
+from irs_lookup.util import list_to_tuple, tuple_to_list
 
 # def csv_writeline(file, line):
 #     with open(file, 'a', newline='') as f:
@@ -107,7 +109,10 @@ def load_990(url):
     return text
 
 
-def lookup_990s_by_ein(ein):
+@list_to_tuple
+@cachetools.cached(cache.cache, key=partial(hashkey, 'irs_lookup_990s_by_ein'), lock=cache.lock)
+@tuple_to_list
+def lookup_990s_by_ein(ein, ignore_tax_periods=[]):
     ein = ein.strip()
 
     columns = [
@@ -125,7 +130,7 @@ def lookup_990s_by_ein(ein):
     if len(ein) < 9:  # EIN has to be at least 9 characters
         return irs_returns
     else:
-        print("Loading {}'s 990 data".format(ein))
+        logger.info("Loading {}'s 990 data".format(ein))
 
         url = 'https://apps.irs.gov/app/eos/displayCopyOfReturns.do?dispatchMethod=displayCORInfo&CopyOfReturnId=1211739&ein={}&country=US&deductibility=all&dispatchMethod=searchCopyOfReturns&isDescending=false&city=&ein1={}&postDateFrom=&exemptTypeCode=al&submitName=Search&sortColumn=orgName&totalResults=1&names=&resultsPerPage=25&indexOfFirstRow=0&postDateTo=&state=All+States'.format(
             ein,
@@ -141,6 +146,7 @@ def lookup_990s_by_ein(ein):
             for row in rows:
                 returns = row.find_all(['b', 'br', 'span', 'a'])
 
+                # Convert the chunk of filing html into a simple list of values
                 def flattened_details(tags):
                     values = []
                     for tag in tags:
@@ -193,8 +199,13 @@ def lookup_990s_by_ein(ein):
 
                     ii += 1
 
+                if len(ignore_tax_periods) > 0:
+                    if r_tax_period in ignore_tax_periods:
+                        logger.warn("Skipping {}'s Tax Period '{}'".format(ein, r_tax_period))
+                        continue
+
                 if r_filing_url is not None:
-                    print(
+                    logger.info(
                         "Fetching {}'s '{}' (ReturnId={})".format(
                             ein, r_filing_name, r_return_id))
                     text_990 = load_990(r_filing_url)
@@ -240,24 +251,13 @@ def lookup_990s_by_ein(ein):
                                      r_filing_date_start,
                                      r_filing_date_end]],
                                    columns=columns)
-                # row = {
-                #     'ein': ein,
-                #     'name': r_name,
-                #     'tax_period': r_tax_period,
-                #     'return_id': r_return_id,
-                #     'return_type': r_return_type,
-                #     'filing_name': r_filing_name,
-                #     'filing_url': r_filing_url,
-                #     'filing_date_start': dateparser.parse(r_filing_date_start).strftime('%m-%d-%Y'),
-                #     'filing_date_end': dateparser.parse(r_filing_date_end).strftime('%m-%d-%Y')
-                # }
+
                 irs_returns = irs_returns.append(row)
 
-            print("Finished {}".format(ein))
+            logger.info("Finished {}".format(ein))
         except Exception as err:
-            print(ein, 'error')
             traceback.print_exc()
-            print(err)
+            logger.error(err)
 
         irs_returns.ein = irs_returns.ein.astype(int)
         irs_returns.return_id = irs_returns.return_id.astype(int)
@@ -265,10 +265,10 @@ def lookup_990s_by_ein(ein):
         return irs_returns
 
 
-def lookup_990s(eins=[]):
+def lookup_990s(eins=[], ignore_tax_periods=[]):
     irs_returns = None
     for ein in eins:
-        df = lookup_990s_by_ein(ein)
+        df = lookup_990s_by_ein(ein, ignore_tax_periods=ignore_tax_periods)
         if df is None:
             continue
 

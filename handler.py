@@ -4,6 +4,10 @@ except ImportError:
     pass
 
 import json
+import pandas as pd
+
+# Make sure cache is initialized first
+from irs_lookup.cache import cache
 
 from irs_lookup.util import JsonDecimalEncoder
 from irs_lookup import lookup_aws
@@ -23,10 +27,14 @@ def fetch_990(event, context):
                 "source" in event["queryStringParameters"]:
             source = event["queryStringParameters"]["source"]
 
-        if source is not None and source == "irs":
+        if source is not None and source == "aws":
+            df = lookup_aws.lookup_990s([event["pathParameters"]["ein"]])
+        elif source is not None and source == "irs":
             df = lookup_irs.lookup_990s([event["pathParameters"]["ein"]])
         else:
-            df = lookup_aws.lookup_990s([event["pathParameters"]["ein"]])
+            df_aws = lookup_aws.lookup_990s([event["pathParameters"]["ein"]])
+            df_irs = lookup_irs.lookup_990s([event["pathParameters"]["ein"]], ignore_tax_periods=df_aws['tax_period'].tolist())
+            df = pd.concat([df_aws, df_irs], ignore_index=True)
 
         df.reset_index(drop=True, inplace=True)
         response_body = json.dumps(df.to_dict('records'), cls=JsonDecimalEncoder)
@@ -40,6 +48,7 @@ def fetch_990(event, context):
 
 def refresh_990s_bkgd(event, context):
     if event is not None:
+        cache.clear()
         body = json.loads(event['body'])
 
         year = None

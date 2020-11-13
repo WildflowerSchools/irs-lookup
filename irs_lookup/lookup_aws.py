@@ -1,11 +1,16 @@
+import cachetools
+from cachetools.keys import hashkey
+from functools import partial
 import dateparser
 import pandas as pd
 import requests
 import traceback
 from xml.etree import ElementTree
 
+from irs_lookup.cache import cache
 from irs_lookup.handle.dynamodb import get_990s_by_ein
-from irs_lookup.util import is_integer
+from irs_lookup.log import logger
+from irs_lookup.util import is_integer, list_to_tuple, tuple_to_list
 
 
 def load_990(url):
@@ -13,6 +18,9 @@ def load_990(url):
     return response.content
 
 
+@list_to_tuple
+@cachetools.cached(cache.cache, key=partial(hashkey, 'aws_lookup_990s_by_ein'), lock=cache.lock)
+@tuple_to_list
 def lookup_990s_by_ein(ein):
     ein = ein.strip()
 
@@ -29,11 +37,11 @@ def lookup_990s_by_ein(ein):
     irs_returns = pd.DataFrame(columns=columns)
 
     if len(ein) < 9:
-        print("EIN must be 9 characters or longer")
+        logger.info("EIN must be 9 characters or longer")
         return irs_returns
 
     if not is_integer(ein):
-        print("EIN must be an integer")
+        logger.info("EIN must be an integer")
         return irs_returns
 
     ein = int(ein)
@@ -64,13 +72,15 @@ def lookup_990s_by_ein(ein):
             return_header = root.find('ReturnHeader', xml_ns)
             filer_details = return_header.find('Filer', xml_ns)
 
+            tax_year = return_header.find('TaxYr', xml_ns).text
+
             r_name = filer_details.find(
                 'BusinessName', xml_ns).find(
                 'BusinessNameLine1Txt', xml_ns).text
             r_return_id = item['id']
             r_return_type = item['return_type']
             r_tax_period = item['tax_period']
-            r_filing_name = item['tax_period']
+            r_filing_name = "{} Form {} Filing".format(tax_year, item['return_type'])
             r_filing_url = "https://apps.irs.gov/pub/epostcard/cor/{}_{}_{}_{}{}.pdf".format(
                 ein,
                 item['tax_period'],
@@ -79,8 +89,12 @@ def lookup_990s_by_ein(ein):
                 item['id'])
             r_filing_date_start = return_header.find(
                 'TaxPeriodBeginDt', xml_ns).text
+            r_filing_date_start = dateparser.parse(
+                r_filing_date_start).strftime('%m-%d-%Y')
             r_filing_date_end = return_header.find(
                 'TaxPeriodEndDt', xml_ns).text
+            r_filing_date_end = dateparser.parse(
+                r_filing_date_end).strftime('%m-%d-%Y')
 
             row = pd.DataFrame([[ein,
                                  r_name,
@@ -94,12 +108,10 @@ def lookup_990s_by_ein(ein):
                                columns=columns)
             irs_returns = irs_returns.append(row)
 
-            print("Finished {}".format(ein))
+            logger.info("Finished {}".format(ein))
     except Exception as err:
-        print(ein, 'error')
         traceback.print_exc()
-
-        print(err)
+        logger.error(err)
 
     return irs_returns
 

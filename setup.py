@@ -7,6 +7,7 @@ VERSION = open(os.path.join(BASEDIR, 'VERSION')).read().strip()
 # Dependencies (format is 'PYPI_PACKAGE_NAME[>=]=VERSION_NUMBER')
 BASE_DEPENDENCIES = [
     'beautifulsoup4',
+    'cachetools>=4.1.1',
     'click>=7.1.1',
     'click-log>=0.3.2',
     'dateparser',
